@@ -126,7 +126,7 @@ const createInfoWindow = () => {
     },
   });
   infoWindow.loadFile(path.join(__dirname, 'info.html'));
-  infoWindow.on('ready-to-show', () => {
+  infoWindow.webContents.on('did-finish-load', () => {
     showInfoWindow();
   });
 };
