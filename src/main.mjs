@@ -144,7 +144,6 @@ const createMainWindow = () => {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.webContents.setZoomFactor(config.zoomFactor ?? 1);
-    setupCronjobs();
   });
 };
 
