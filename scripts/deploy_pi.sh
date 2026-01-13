@@ -6,6 +6,9 @@
 
 echo "--- Raspberry Pi 5 Kiosk Deployer ---"
 
+# Detect local timezone to use as default for remote Pi
+LOCAL_TIMEZONE=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "Europe/Brussels")
+
 # Main deployment loop
 while true; do
     echo ""
@@ -18,6 +21,8 @@ while true; do
     read -p "Enter Pi IP Address: " TARGET_IP
     read -p "Enter Pi Username [edugo]: " INPUT_USER
     TARGET_USER="${INPUT_USER:-edugo}"
+    read -p "Enter Timezone [$LOCAL_TIMEZONE]: " INPUT_TIMEZONE
+    TARGET_TIMEZONE="${INPUT_TIMEZONE:-$LOCAL_TIMEZONE}"
 
     echo "-------------------------------------"
     echo "Target: $TARGET_USER@$TARGET_IP"
@@ -26,8 +31,14 @@ while true; do
     # 2. Define the Remote Script Content
     #    This function contains the entire installer that runs ON THE PI.
     get_remote_script() {
-cat <<'REMOTE_EOF'
+# First, inject the timezone variable (expanded on host side)
+cat <<TIMEZONE_EOF
 #!/bin/bash
+TARGET_TIMEZONE="$TARGET_TIMEZONE"
+TIMEZONE_EOF
+
+# Then, the rest of the script (not expanded - single quotes)
+cat <<'REMOTE_EOF'
 
 # ==========================================
 #  RPI 5 Kiosk Installer (Running on Pi)
@@ -69,7 +80,7 @@ echo "--- Starting Install for: $NAME ---"
 sleep 2
 
 # --- Step 1: System Updates & Fixes ---
-echo "[1/7] Installing System Dependencies..."
+echo "[1/8] Installing System Dependencies..."
 sudo apt-get update
 sudo apt-get upgrade -y
 
@@ -79,8 +90,12 @@ sudo apt-get install -y \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libgbm1 libasound2
 
+# --- Step 2: Set Timezone ---
+echo "[2/8] Setting Timezone to $TARGET_TIMEZONE..."
+sudo timedatectl set-timezone "$TARGET_TIMEZONE"
+
 # --- CRITICAL PI 5 FIX ---
-echo "[2/7] Applying Pi 5 Xorg Fixes..."
+echo "[3/8] Applying Pi 5 Xorg Fixes..."
 # Remove legacy drivers
 sudo apt-get remove -y xserver-xorg-video-fbturbo xserver-xorg-video-fbdev
 # Force modesetting driver for Pi 5 GPU
@@ -95,7 +110,7 @@ EndSection
 EOF'
 
 # --- Step 2: Install Node.js v18 ---
-echo "[3/7] Installing Node.js v18..."
+echo "[4/8] Installing Node.js v18..."
 export NVM_DIR="$USER_HOME/.nvm"
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -104,7 +119,7 @@ nvm use 18
 nvm alias default 18
 
 # --- Step 3: Setup Application ---
-echo "[4/7] Setting up rpi-infodisplay..."
+echo "[5/8] Setting up rpi-infodisplay..."
 if [ -d "$REPO_DIR" ]; then
     echo "Updating existing repo..."
     cd "$REPO_DIR"
@@ -120,7 +135,7 @@ rm -rf node_modules package-lock.json
 npm install
 
 # --- Step 4: Generate Configs ---
-echo "[5/7] Generating Config Files..."
+echo "[6/8] Generating Config Files..."
 cat > "$REPO_DIR/config.json" <<EOF
 {
   "name": "$NAME",
@@ -147,7 +162,7 @@ EOF
 chmod +x "$USER_HOME/.xinitrc"
 
 # --- Step 5: Setup Daily Auto-Update (Cron) ---
-echo "[6/7] Setting up Daily Auto-Update..."
+echo "[7/8] Setting up Daily Auto-Update..."
 # Runs at 6:00 AM every day
 CRON_CMD="0 6 * * * cd $REPO_DIR && /usr/bin/git pull && /home/$USER/.nvm/versions/node/v18*/bin/npm install"
 
@@ -155,7 +170,7 @@ CRON_CMD="0 6 * * * cd $REPO_DIR && /usr/bin/git pull && /home/$USER/.nvm/versio
 (crontab -l 2>/dev/null | grep -F "git pull") || (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
 
 # --- Step 6: Autologin & Autostart ---
-echo "[7/7] Configuring Boot..."
+echo "[8/8] Configuring Boot..."
 sudo raspi-config nonint do_boot_behaviour B2
 
 PROFILE_FILE="$USER_HOME/.bash_profile"
