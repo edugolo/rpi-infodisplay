@@ -6,18 +6,26 @@
 
 echo "--- Raspberry Pi 5 Kiosk Deployer ---"
 
-# 1. Prompt for Connection Details (Host Side)
-read -p "Enter Pi IP Address: " TARGET_IP
-read -p "Enter Pi Username [edugo]: " INPUT_USER
-TARGET_USER="${INPUT_USER:-edugo}"
+# Main deployment loop
+while true; do
+    echo ""
+    echo "============================================"
+    echo "         Starting New Pi Deployment"
+    echo "============================================"
+    echo ""
 
-echo "-------------------------------------"
-echo "Target: $TARGET_USER@$TARGET_IP"
-echo "-------------------------------------"
+    # 1. Prompt for Connection Details (Host Side)
+    read -p "Enter Pi IP Address: " TARGET_IP
+    read -p "Enter Pi Username [edugo]: " INPUT_USER
+    TARGET_USER="${INPUT_USER:-edugo}"
 
-# 2. Define the Remote Script Content
-#    This function contains the entire installer that runs ON THE PI.
-get_remote_script() {
+    echo "-------------------------------------"
+    echo "Target: $TARGET_USER@$TARGET_IP"
+    echo "-------------------------------------"
+
+    # 2. Define the Remote Script Content
+    #    This function contains the entire installer that runs ON THE PI.
+    get_remote_script() {
 cat <<'REMOTE_EOF'
 #!/bin/bash
 
@@ -169,23 +177,49 @@ echo "=========================================="
 sleep 5
 sudo reboot
 REMOTE_EOF
-}
+    }
 
-# 3. Transfer the script over SSH
-echo "1. Uploading installer script to $TARGET_IP..."
-# Write the content of get_remote_script to a file on the Pi
-get_remote_script | ssh "$TARGET_USER@$TARGET_IP" "cat > ~/install_kiosk.sh"
+    # 3. Transfer the script over SSH
+    echo "1. Uploading installer script to $TARGET_IP..."
+    # Write the content of get_remote_script to a file on the Pi
+    get_remote_script | ssh "$TARGET_USER@$TARGET_IP" "cat > ~/install_kiosk.sh"
 
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Could not connect to $TARGET_IP. Check IP and try again."
-    exit 1
-fi
+    if [ $? -ne 0 ]; then
+        echo "Error: Could not connect to $TARGET_IP. Check IP and try again."
+        echo ""
+        read -p "Do you want to try another Pi? (y/n): " RETRY
+        case "$RETRY" in
+            [Yy]|[Yy][Ee][Ss])
+                continue
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+    fi
 
-# 4. Execute the script interactively
-echo "2. Starting remote installation..."
-# -t is crucial here: it opens a pseudo-terminal so you can answer the questions
-ssh -t "$TARGET_USER@$TARGET_IP" "chmod +x ~/install_kiosk.sh && ~/install_kiosk.sh"
+    # 4. Execute the script interactively
+    echo "2. Starting remote installation..."
+    # -t is crucial here: it opens a pseudo-terminal so you can answer the questions
+    ssh -t "$TARGET_USER@$TARGET_IP" "chmod +x ~/install_kiosk.sh && ~/install_kiosk.sh"
 
-echo "-------------------------------------"
-echo "Deployment finished. Pi is rebooting."
-echo "-------------------------------------"
+    echo "-------------------------------------"
+    echo "Deployment finished. Pi is rebooting."
+    echo "-------------------------------------"
+
+    # Ask if user wants to deploy to another Pi
+    echo ""
+    read -p "Do you want to deploy to another Pi? (y/n): " ANOTHER
+    case "$ANOTHER" in
+        [Yy]|[Yy][Ee][Ss])
+            echo "Starting next deployment..."
+            ;;
+        *)
+            echo ""
+            echo "============================================"
+            echo "      All deployments complete. Goodbye!"
+            echo "============================================"
+            exit 0
+            ;;
+    esac
+done
