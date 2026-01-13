@@ -1,10 +1,9 @@
 {
   "name": "",
   "location": "",
-  "url": "https://display.edugolo.be",
+  "url": "https://edugo.be",
   "fullscreen": true,
   "frame": false,
   "zoomFactor": 1,
-  "controller": "displays.edugolo.be:8000",
-  "refreshCronExpression": "0 0 * * * *"
+  "controller": "https://app.edugo.be/api/v1/devices/control"
 }
