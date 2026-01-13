@@ -7,7 +7,6 @@ import {
   // desktopCapturer,
   // session,
 } from 'electron';
-import * as scClient from 'socketcluster-client';
 import * as sysInfo from 'systeminformation';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,84 +42,6 @@ const getSystemInfo = async () => {
 const systemInfo = await getSystemInfo();
 const config = JSON.parse(await readFile('./config.json', 'utf-8'));
 
-// Socketcluster client setup
-
-const socket = scClient.create({
-  host: config.controller ?? 'localhost:8000',
-  // port: 443,
-  // secure: true,
-  // // Only necessary during debug if using a self-signed certificate
-  // wsOptions: { rejectUnauthorized: false },
-  autoReconnectOptions: {
-    initialDelay: 1000, // in milliseconds
-    maxDelay: 2000, // in milliseconds
-  },
-});
-
-setInterval(() => {
-  socket.transmit('device/heartbeat', { id: systemInfo.serial })
-}, 1000);
-
-(async () => {
-  for await (const event of socket.listener('connect')) {
-    console.log(`Connected to server with socket id ${socket.id}`);
-    console.log(`Authenticated?: ${event.isAuthenticated}`);
-
-    if (!event.isAuthenticated) {
-    }
-
-    // Send device announcement
-    (async () => {
-      let result;
-      try {
-        result = await socket.invoke('devices/presence', {
-          systemInfo,
-          config,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    })();
-
-    // Subscribe to private channel, where actions can be tranmitted to
-    (async () => {
-      for await (let data of socket.subscribe(
-        // 'private'/<module>:<id>
-        // `devices/channel:${channel}`
-        `devices/channel:${systemInfo.serial}`
-      )) {
-        console.log(data);
-        try {
-          actions[data.action](data);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      console.log('subscribed from private channel');
-    })();
-  }
-})();
-
-(async () => {
-  for await (const event of socket.listener('disconnect')) {
-    console.log('Disconnected from server');
-  }
-})();
-
-(async () => {
-  for await (const event of socket.listener('authStateChange')) {
-    console.log(`authStateChange ${socket.id}`);
-  }
-})();
-
-(async () => {
-  for await (const event of socket.listener('error')) {
-    // console.log(event.error);
-  }
-})();
-
-// Actions
-
 const actions = {
   saveProps: async (data) => {
     config.name = data.payload.props.name;
@@ -132,7 +53,7 @@ const actions = {
 
     mainWindow.loadURL(data.payload.props.url);
     mainWindow.webContents.setZoomFactor(
-      parseFloat(data.payload.props.zoomFactor)
+      parseFloat(data.payload.props.zoomFactor),
     );
     // Send device announcement
     (async () => {
@@ -164,12 +85,7 @@ const actions = {
     console.log('getScreenshot', data);
     const image = await mainWindow.webContents.capturePage();
     try {
-      socket.transmitPublish(`devices/confirmationChannel:${data.messageId}`, {
-        // message: 'confirmation ',
-        action: 'getScreenshot',
-        image: image.toPNG(),
-      });
-      // debugger;
+      // implement
     } catch (error) {
       console.log(error);
     }
@@ -180,15 +96,10 @@ const actions = {
     try {
       console.log(
         'ping confirmation',
-        `devices/confirmationChannel:${data.messageId}`
+        `devices/confirmationChannel:${data.messageId}`,
       );
-      socket.transmitPublish(`devices/confirmationChannel:${data.messageId}`, {
-        // message: 'confirmation ',
-        action: 'ping',
-        serial: data.payload.serial,
-        socket: socket.id,
-      });
-      // debugger;
+
+      // implement
     } catch (error) {
       console.log(error);
     }
@@ -269,43 +180,11 @@ app.on('ready', async () => {
 });
 
 app.on('before-quit', async (e) => {
-  // try {
-  //   e.preventDefault();
-  //   await socket.invoke('devices/goodbye', { serial: systemInfo.serial });
-  //   app.exit();
-  // } catch (error) {
-  //   console.error(error);
-  // }
-});
-
-const setupCronjobs = () => {
-  // Reporting presence to server every 30 seconds
-  new CronJob(
-    '*/30 * * * * *',
-    async () => {
-      try {
-        await socket.invoke('devices/presence', {
-          systemInfo,
-          config,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    },
-    null,
-    true
-  );
-
-  // Auto refresh  in config
-  if (config.refreshCronExpression && config.refreshCronExpression.length > 0) {
-    new CronJob(
-      config.refreshCronExpression, // cronTime
-      function () {
-        actions.refresh();
-        console.log('refresh', new Date());
-      }, // onTick
-      null, // onComplete
-      true // start
-    );
+  try {
+    e.preventDefault();
+    // implement rest api
+    app.exit();
+  } catch (error) {
+    console.error(error);
   }
-};
+});
