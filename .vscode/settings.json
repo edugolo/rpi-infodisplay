@@ -1,0 +1,14 @@
+{
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": true,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": ["source.fixAll.eslint"],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
+  "workbench.colorCustomizations": {
+    "activityBar.background": "#7bb027",
+    "activityBar.foreground": "#ffffff",
+    "activityBar.inactiveForeground": "#bef0bf",
+    "tab.activeBackground": "#7bb027"
+  }
+}
